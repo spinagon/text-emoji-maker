@@ -1,0 +1,5 @@
+{
+  "name": "Discord Text Emoji Gen",
+  "description": "Generate custom text-based Discord emojis with transparent backgrounds using Gemini AI.",
+  "requestFramePermissions": []
+}
