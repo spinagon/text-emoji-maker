@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Loader2, Wand2, Download, Trash2, History, Type, Palette, Scaling } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Loader2, Wand2, Download, Trash2, History, Type, Palette, Scaling, Save } from 'lucide-react';
 import { generateEmojiImage } from '../services/geminiService';
 import { GeneratedEmoji, GenerationSettings, EmojiStyle } from '../types';
 
@@ -10,9 +10,9 @@ interface EmojiMakerProps {
 }
 
 const EmojiMaker: React.FC<EmojiMakerProps> = ({ onEmojiGenerated, recentEmojis, onDeleteEmoji }) => {
-  const [text, setText] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [currentEmoji, setCurrentEmoji] = useState<GeneratedEmoji | null>(null);
+  const [text, setText] = useState('LOL');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState<GenerationSettings>({
     textColor: 'Light Pastel',
@@ -36,41 +36,59 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ onEmojiGenerated, recentEmojis,
     { name: 'Standard', value: "'Inter', sans-serif" },
   ];
 
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text.trim()) return;
+  // Real-time generation effect
+  useEffect(() => {
+    let isActive = true;
+    const generate = async () => {
+        if (!text.trim()) {
+            setPreviewUrl(null);
+            return;
+        }
+        
+        setError(null);
+
+        try {
+            const url = await generateEmojiImage(text.trim(), settings);
+            if (isActive) {
+                setPreviewUrl(url);
+            }
+        } catch (err) {
+            console.error("Preview generation failed", err);
+            setError("Failed to generate preview");
+        }
+    };
+
+    // Debounce slightly to keep UI smooth during slider dragging
+    const timeoutId = setTimeout(generate, 50);
+
+    return () => {
+        isActive = false;
+        clearTimeout(timeoutId);
+    };
+  }, [text, settings]);
+
+  const handleSave = async () => {
+    if (!text.trim() || !previewUrl) return;
     
-    // Hard limit 16 chars
-    if (text.length > 16) {
-        setError("Max 16 characters.");
-        return;
-    }
-
-    setIsGenerating(true);
-    setError(null);
-
+    setIsSaving(true);
     try {
-      // Small delay to allow UI to show loading state even though generation is instant
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // The service now returns a fully rasterized PNG data URL
-      const imageUrl = await generateEmojiImage(text.trim(), settings);
+      // Simulate a small delay for feedback
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       const newEmoji: GeneratedEmoji = {
         id: crypto.randomUUID(),
         text: text,
-        imageUrl: imageUrl,
-        processedUrl: imageUrl,
+        imageUrl: previewUrl,
+        processedUrl: previewUrl,
         createdAt: Date.now(),
       };
 
-      setCurrentEmoji(newEmoji);
       onEmojiGenerated(newEmoji);
     } catch (err) {
-      setError("Failed to generate emoji. Please try again.");
+      setError("Failed to save emoji.");
       console.error(err);
     } finally {
-      setIsGenerating(false);
+      setIsSaving(false);
     }
   };
 
@@ -83,10 +101,7 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ onEmojiGenerated, recentEmojis,
     document.body.removeChild(link);
   };
 
-  // Helper to sync style with recommended font, unless user changes it
   const handleStyleChange = (style: EmojiStyle) => {
-    // Optional: auto-select font based on style for better UX, or let user decide
-    // For now we keep current font unless it was the default
     setSettings({ ...settings, style });
   };
 
@@ -105,22 +120,21 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ onEmojiGenerated, recentEmojis,
             <p className="text-slate-400 text-sm">Create custom text stickers. Instant & Client-side.</p>
           </div>
 
-          <form onSubmit={handleGenerate} className="space-y-6">
+          <div className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Text content (Max 16 chars)
+                Text content
               </label>
               <input
                 type="text"
                 value={text}
                 onChange={(e) => setText(e.target.value.toUpperCase())}
                 placeholder="LOL, HYPE, LMAO"
-                maxLength={16}
-                className="w-full bg-slate-900 border border-slate-700 text-white text-3xl font-bold tracking-wider rounded-xl p-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none placeholder-slate-600 text-center uppercase"
+                className="w-full bg-slate-900 border border-slate-700 text-white text-3xl font-bold tracking-wider rounded-xl p-4 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none placeholder-slate-600 text-center uppercase transition-all"
               />
               <div className="flex justify-between mt-2 px-1">
-                 <span className={`text-xs ${text.length > 14 ? 'text-red-400' : 'text-slate-500'}`}>
-                    {text.length}/16
+                 <span className="text-xs text-slate-500">
+                    {text.length} chars
                  </span>
                  <span className="text-xs text-slate-500">Auto-wraps long text</span>
               </div>
@@ -199,20 +213,20 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ onEmojiGenerated, recentEmojis,
                {/* Size Slider */}
                <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                    <Scaling className="w-3 h-3" /> Text Size ({Math.round(settings.scale * 100)}%)
+                    <Scaling className="w-3 h-3" /> Text Scale ({Math.round(settings.scale * 100)}%)
                 </label>
                 <div className="flex items-center gap-3 h-[46px]">
-                    <span className="text-xs text-slate-500">A</span>
+                    <span className="text-xs text-slate-500">Small</span>
                     <input 
                         type="range" 
                         min="0.5" 
-                        max="1.5" 
-                        step="0.1" 
+                        max="2.0" 
+                        step="0.05" 
                         value={settings.scale}
                         onChange={(e) => setSettings({...settings, scale: parseFloat(e.target.value)})}
-                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500 hover:accent-indigo-400"
                     />
-                    <span className="text-lg text-slate-300">A</span>
+                    <span className="text-xs text-slate-500">Big</span>
                 </div>
                </div>
             </div>
@@ -224,53 +238,56 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ onEmojiGenerated, recentEmojis,
             )}
 
             <button
-              type="submit"
-              disabled={isGenerating || !text.trim()}
+              onClick={handleSave}
+              disabled={isSaving || !text.trim() || !previewUrl}
               className={`w-full py-4 rounded-xl font-bold text-lg shadow-lg transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2
-                ${isGenerating || !text.trim()
+                ${isSaving || !text.trim() || !previewUrl
                   ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
                   : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:shadow-indigo-500/25'
                 }`}
             >
-              {isGenerating ? (
+              {isSaving ? (
                 <>
                   <Loader2 className="animate-spin w-5 h-5" />
-                  Generating...
+                  Saving...
                 </>
               ) : (
-                'Render Emoji'
+                <>
+                    <Save className="w-5 h-5" />
+                    Save Emoji
+                </>
               )}
             </button>
-          </form>
+          </div>
         </div>
 
-        {/* Current Result Preview */}
-        {currentEmoji && (
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-lg font-semibold text-white mb-4">Preview</h2>
+        {/* Live Preview */}
+        {previewUrl && (
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl animate-in fade-in duration-300">
+            <h2 className="text-lg font-semibold text-white mb-4">Live Preview</h2>
             
             <div className="flex flex-col sm:flex-row gap-6 items-center justify-center">
               {/* Large View */}
               <div className="flex flex-col items-center gap-2">
-                <div className="w-32 h-32 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] bg-slate-700 rounded-lg flex items-center justify-center border-2 border-slate-600 overflow-hidden relative">
+                <div className="w-32 h-32 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] bg-slate-700 rounded-lg flex items-center justify-center border-2 border-slate-600 overflow-hidden relative shadow-inner">
                    {/* Checkerboard background for transparency check */}
                    <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)', backgroundSize: '20px 20px', backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px' }}></div>
-                   <img src={currentEmoji.processedUrl} alt="Preview" className="w-24 h-24 object-contain relative z-10" />
+                   <img src={previewUrl} alt="Preview" className="w-24 h-24 object-contain relative z-10 transition-all duration-75" />
                 </div>
                 <span className="text-xs text-slate-500">Actual Size (96px)</span>
               </div>
 
               {/* Context View (Discord Dark Mode) */}
-              <div className="flex-1 w-full sm:w-auto bg-[#36393f] rounded-lg p-4 flex items-start gap-3 border border-slate-900">
+              <div className="flex-1 w-full sm:w-auto bg-[#36393f] rounded-lg p-4 flex items-start gap-3 border border-slate-900 shadow-inner">
                  <div className="w-10 h-10 rounded-full bg-indigo-500 flex-shrink-0"></div>
                  <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-2">
                         <span className="text-white font-medium text-sm">User</span>
                         <span className="text-xs text-slate-400">Today at 4:20 PM</span>
                     </div>
-                    <div className="text-slate-300 text-sm mt-1 flex items-center gap-1">
+                    <div className="text-slate-300 text-sm mt-1 flex items-center gap-1 flex-wrap">
                         Here is the new emoji! 
-                        <img src={currentEmoji.processedUrl} alt="emoji" className="w-6 h-6 inline-block align-bottom" />
+                        <img src={previewUrl} alt="emoji" className="w-6 h-6 inline-block align-bottom" />
                     </div>
                  </div>
               </div>
@@ -278,8 +295,8 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ onEmojiGenerated, recentEmojis,
 
             <div className="mt-6 flex justify-center">
                 <button
-                    onClick={() => handleDownload(currentEmoji.processedUrl, `${currentEmoji.text}_emoji.png`)}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-6 py-2.5 rounded-lg font-medium transition-colors"
+                    onClick={() => handleDownload(previewUrl, `${text}_emoji.png`)}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-6 py-2.5 rounded-lg font-medium transition-colors shadow-lg shadow-green-900/20"
                 >
                     <Download className="w-4 h-4" />
                     Download PNG (96x96)
@@ -331,7 +348,7 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ onEmojiGenerated, recentEmojis,
 
             {recentEmojis.length === 0 && (
                 <div className="col-span-full py-12 text-center text-slate-600 border-2 border-dashed border-slate-800 rounded-xl">
-                    <p>No emojis generated yet.</p>
+                    <p>No emojis saved yet.</p>
                 </div>
             )}
          </div>

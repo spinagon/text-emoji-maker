@@ -170,7 +170,8 @@ export const generateEmojiImage = async (text: string, settings: GenerationSetti
   let fontSize = 100;
   let fits = false;
 
-  while (fontSize > 8 && !fits) {
+  // Reduced minimum font size to 4px to accommodate longer text
+  while (fontSize > 4 && !fits) {
     ctx.font = `900 ${fontSize}px ${fontFamily}`;
     const lineHeight = fontSize * 0.9;
     const totalH = lines.length * lineHeight;
