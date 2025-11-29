@@ -3,7 +3,7 @@ name: Deploy to spinagon.github.io/discord-emoji
 on:
   push:
     branches:
-      - main
+      - mainqwerty
 
 jobs:
   build-and-deploy:
