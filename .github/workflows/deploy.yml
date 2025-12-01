@@ -27,7 +27,7 @@ jobs:
       - name: Deploy to spinagon.github.io/discord-emoji
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.PERSONAL_TOKEN }}
+          personal_token: ${{ secrets.PERSONAL_TOKEN }}
           publish_dir: ./dist
           external_repository: spinagon/spinagon.github.io
           publish_branch: master
